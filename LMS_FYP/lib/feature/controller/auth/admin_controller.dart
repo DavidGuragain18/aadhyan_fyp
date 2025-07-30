@@ -4,42 +4,54 @@ import 'package:get/get.dart';
 import '../../model/auth/user_model.dart';
 import '../../services/api_services.dart';
 
+/// Controller for managing users - fetching, filtering, suspending/unsuspending, etc.
 class UserManagementController extends GetxController {
+  // Observable variables for loading states
   final RxBool isLoading = false.obs;
   final RxBool isSuspendingUser = false.obs;
+
+  // List of all users from the API
   final RxList<UserModel> allUsers = <UserModel>[].obs;
+
+  // Filtered list of users based on search/role
   final RxList<UserModel> filteredUsers = <UserModel>[].obs;
+
+  // Current search query and selected role filter
   final RxString searchQuery = ''.obs;
-  final RxString selectedRole = 'all'.obs; // all, student, teacher, admin
+  final RxString selectedRole = 'all'.obs; // Options: all, student, teacher, admin
 
   @override
   void onInit() {
     super.onInit();
     getAllUsers();
-    // Listen to search query changes
+
+    // Automatically re-filter when search query or role changes
     ever(searchQuery, (_) => filterUsers());
     ever(selectedRole, (_) => filterUsers());
   }
 
+  /// Sets the search query and triggers filtering
   void setSearchQuery(String query) {
     searchQuery.value = query;
   }
 
+  /// Sets the selected role filter and triggers filtering
   void setSelectedRole(String role) {
     selectedRole.value = role;
   }
 
+  /// Filters users based on current search query and role
   void filterUsers() {
     List<UserModel> filtered = allUsers.toList();
 
-    // Filter by role
+    // Filter by selected role if not 'all'
     if (selectedRole.value != 'all') {
       filtered = filtered
           .where((user) => user.role == selectedRole.value)
           .toList();
     }
 
-    // Filter by search query
+    // Filter by name or email based on search query
     if (searchQuery.value.isNotEmpty) {
       filtered = filtered.where((user) {
         return user.name.toLowerCase().contains(
@@ -49,9 +61,11 @@ class UserManagementController extends GetxController {
       }).toList();
     }
 
+    // Assign the filtered list
     filteredUsers.assignAll(filtered);
   }
 
+  /// Fetches all users from the API and updates the local lists
   Future<void> getAllUsers() async {
     isLoading.value = true;
     try {
@@ -60,18 +74,17 @@ class UserManagementController extends GetxController {
 
       if (response.success && response.data != null) {
         log('Debug - API response successful');
-
-        // Now response.data is already List<UserModel>
         final List<UserModel> users = response.data!;
 
         allUsers.clear();
         allUsers.addAll(users);
 
-        // Initialize filtered users
+        // Update filtered list based on current filters
         filterUsers();
 
         log('Successfully loaded ${users.length} users');
 
+        // Show success or info message
         if (users.isNotEmpty) {
           Get.snackbar(
             'Success',
@@ -108,6 +121,7 @@ class UserManagementController extends GetxController {
         );
       }
     } catch (e, stackTrace) {
+      // Handle unexpected errors
       log('Get all users error: $e');
       log('Stack trace: $stackTrace');
 
@@ -124,6 +138,7 @@ class UserManagementController extends GetxController {
     }
   }
 
+  /// Suspend or unsuspend a user by their ID
   Future<void> suspendUnsuspendUser(String userId, bool shouldSuspend) async {
     if (isSuspendingUser.value) {
       log('Debug - Already processing a suspend/unsuspend operation, ignoring');
@@ -132,9 +147,7 @@ class UserManagementController extends GetxController {
 
     isSuspendingUser.value = true;
     try {
-      log(
-        'Debug - ${shouldSuspend ? 'Suspending' : 'Unsuspending'} user: $userId',
-      );
+      log('Debug - ${shouldSuspend ? 'Suspending' : 'Unsuspending'} user: $userId');
 
       final response = await ApiService.suspendUnsuspendUser(
         userId,
@@ -142,7 +155,7 @@ class UserManagementController extends GetxController {
       );
 
       if (response.success) {
-        // Update the user in local list
+        // Update the user locally
         final userIndex = allUsers.indexWhere((user) => user.id == userId);
         if (userIndex != -1) {
           final oldUser = allUsers[userIndex];
@@ -162,13 +175,14 @@ class UserManagementController extends GetxController {
           );
 
           allUsers[userIndex] = updatedUser;
-          filterUsers(); // Refresh filtered list
+          filterUsers(); // Re-apply filters to refresh UI
 
           log('Debug - Local user status updated successfully');
         } else {
           log('Warning - User not found in local list for ID: $userId');
         }
 
+        // Show success message
         Get.snackbar(
           'Success',
           shouldSuspend
@@ -179,8 +193,6 @@ class UserManagementController extends GetxController {
           colorText: Colors.white,
           duration: const Duration(seconds: 3),
         );
-
-        log('User ${shouldSuspend ? 'suspended' : 'unsuspended'} successfully');
       } else {
         log('Suspend/Unsuspend API failed. Message: ${response.message}');
 
@@ -196,6 +208,7 @@ class UserManagementController extends GetxController {
         );
       }
     } catch (e, stackTrace) {
+      // Handle exceptions
       log('Suspend/Unsuspend user error: $e');
       log('Stack trace: $stackTrace');
 
@@ -212,6 +225,7 @@ class UserManagementController extends GetxController {
     }
   }
 
+  /// Triggers manual refresh of user list if not already loading
   void refreshUsers() {
     if (!isLoading.value) {
       getAllUsers();
@@ -220,20 +234,32 @@ class UserManagementController extends GetxController {
     }
   }
 
-  // Helper methods for UI - Added safety checks
+  // ---------- UI Helper Methods ----------
+
+  /// Total number of users
   int get totalUsers => allUsers.length;
+
+  /// Count of suspended users
   int get suspendedUsers => allUsers.where((user) => user.isSuspended).length;
+
+  /// Count of active (non-suspended) users
   int get activeUsers => allUsers.where((user) => !user.isSuspended).length;
+
+  /// Count of users with role 'student'
   int get studentCount =>
       allUsers.where((user) => user.role.toLowerCase() == 'student').length;
+
+  /// Count of users with role 'teacher'
   int get teacherCount =>
       allUsers.where((user) => user.role.toLowerCase() == 'teacher').length;
+
+  /// Count of users with role 'admin'
   int get adminCount =>
       allUsers.where((user) => user.role.toLowerCase() == 'admin').length;
 
   @override
   void onClose() {
-    // Clean up if needed
+    // Cleanup if necessary
     super.onClose();
   }
 }
