@@ -1,3 +1,4 @@
+// Importing necessary packages
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -5,8 +6,10 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/services.dart';
 
+// Enum to represent different AI providers
 enum AIProvider { chatGPT, claude, gemini }
 
+// Model for individual chat messages
 class ChatMessage {
   final String content;
   final bool isUser;
@@ -21,14 +24,17 @@ class ChatMessage {
   });
 }
 
+// Main controller for managing AI chat logic
 class ChatAIController extends GetxController {
-  final RxList<ChatMessage> messages = <ChatMessage>[].obs;
-  final RxBool isLoading = false.obs;
-  final Rx<AIProvider> selectedProvider = AIProvider.chatGPT.obs;
-  final TextEditingController messageController = TextEditingController();
-  final ScrollController scrollController = ScrollController();
+  final RxList<ChatMessage> messages = <ChatMessage>[].obs; // Chat messages
+  final RxBool isLoading = false.obs; // Loading indicator
+  final Rx<AIProvider> selectedProvider = AIProvider.chatGPT.obs; // Selected AI
+  final TextEditingController messageController =
+      TextEditingController(); // User input
+  final ScrollController scrollController =
+      ScrollController(); // Scroll behavior
 
-  // Secure storage for API keys with better configuration
+  // Secure storage for API keys
   static const _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
     iOptions: IOSOptions(
@@ -36,11 +42,12 @@ class ChatAIController extends GetxController {
     ),
   );
 
+  // Variables to store API keys
   String? _openAIKey;
   String? _claudeKey;
   String? _geminiKey;
 
-  // Track which providers are available
+  // Reactive flags
   final RxList<AIProvider> availableProviders = <AIProvider>[].obs;
   final RxBool hasAnyApiKey = false.obs;
   final RxBool isInitializing = true.obs;
@@ -48,7 +55,7 @@ class ChatAIController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _initializeController();
+    _initializeController(); // Initialize controller on start
   }
 
   @override
@@ -58,10 +65,11 @@ class ChatAIController extends GetxController {
     super.onClose();
   }
 
+  // Initialization logic
   Future<void> _initializeController() async {
     try {
       isInitializing.value = true;
-      await _loadApiKeys();
+      await _loadApiKeys(); // Load stored keys
     } catch (e) {
       print('Error during initialization: $e');
       _handleStorageError(e);
@@ -70,10 +78,9 @@ class ChatAIController extends GetxController {
     }
   }
 
-  // Load API keys from secure storage with error handling
+  // Load API keys from secure storage
   Future<void> _loadApiKeys() async {
     try {
-      // Try to read API keys with timeout
       _openAIKey = await _storage
           .read(key: 'openai_api_key')
           .timeout(Duration(seconds: 5), onTimeout: () => null);
@@ -86,17 +93,14 @@ class ChatAIController extends GetxController {
 
       _updateAvailableProviders();
 
-      // If no keys exist at all, show setup dialog
+      // Show key setup dialog if none are found
       if (!hasAnyApiKey.value) {
         Future.delayed(Duration(milliseconds: 500), () {
           _showApiKeySetupDialog();
         });
       } else {
-        // Set default provider to first available one
-        if (availableProviders.isNotEmpty) {
-          selectedProvider.value = availableProviders.first;
-        }
-        _addWelcomeMessage();
+        selectedProvider.value = availableProviders.first;
+        _addWelcomeMessage(); // Show welcome message
       }
     } catch (e) {
       print('Error loading API keys: $e');
@@ -104,30 +108,27 @@ class ChatAIController extends GetxController {
     }
   }
 
+  // Handle errors with secure storage access
   void _handleStorageError(dynamic error) {
     print('Storage error: $error');
 
-    // Show fallback dialog for manual key entry
     _showSnackbar(
       'Storage Issue',
       'Unable to access secure storage. You can still enter API keys manually.',
       backgroundColor: Colors.orange,
     );
 
-    // Show setup dialog after a delay
     Future.delayed(Duration(seconds: 2), () {
       _showApiKeySetupDialog();
     });
   }
 
-  // Safe snackbar method to prevent conflicts
+  // Show snackbar for messages
   void _showSnackbar(String title, String message, {Color? backgroundColor}) {
-    // Close any existing snackbar first
     if (Get.isSnackbarOpen) {
       Get.closeCurrentSnackbar();
     }
 
-    // Small delay to ensure previous snackbar is fully closed
     Future.delayed(Duration(milliseconds: 100), () {
       Get.snackbar(
         title,
@@ -141,44 +142,43 @@ class ChatAIController extends GetxController {
     });
   }
 
-  // Update available providers based on existing API keys
+  // Update available AI providers based on stored keys
   void _updateAvailableProviders() {
     availableProviders.clear();
 
-    if (_openAIKey != null && _openAIKey!.isNotEmpty) {
+    if (_openAIKey?.isNotEmpty ?? false) {
       availableProviders.add(AIProvider.chatGPT);
     }
-    if (_claudeKey != null && _claudeKey!.isNotEmpty) {
+    if (_claudeKey?.isNotEmpty ?? false) {
       availableProviders.add(AIProvider.claude);
     }
-    if (_geminiKey != null && _geminiKey!.isNotEmpty) {
+    if (_geminiKey?.isNotEmpty ?? false) {
       availableProviders.add(AIProvider.gemini);
     }
 
     hasAnyApiKey.value = availableProviders.isNotEmpty;
   }
 
-  // Store API keys securely with better error handling
+  // Save API keys securely
   Future<void> _storeApiKeys(
     String? openAI,
     String? claude,
     String? gemini,
   ) async {
     try {
-      // Store non-empty keys with timeout
-      if (openAI != null && openAI.isNotEmpty) {
+      if (openAI?.isNotEmpty ?? false) {
         await _storage
             .write(key: 'openai_api_key', value: openAI)
             .timeout(Duration(seconds: 5));
         _openAIKey = openAI;
       }
-      if (claude != null && claude.isNotEmpty) {
+      if (claude?.isNotEmpty ?? false) {
         await _storage
             .write(key: 'claude_api_key', value: claude)
             .timeout(Duration(seconds: 5));
         _claudeKey = claude;
       }
-      if (gemini != null && gemini.isNotEmpty) {
+      if (gemini?.isNotEmpty ?? false) {
         await _storage
             .write(key: 'gemini_api_key', value: gemini)
             .timeout(Duration(seconds: 5));
@@ -186,16 +186,11 @@ class ChatAIController extends GetxController {
       }
 
       _updateAvailableProviders();
-
-      // Set default provider to first available one
       if (availableProviders.isNotEmpty) {
         selectedProvider.value = availableProviders.first;
       }
 
-      // Add welcome message if this is the first time
-      if (messages.isEmpty) {
-        _addWelcomeMessage();
-      }
+      if (messages.isEmpty) _addWelcomeMessage();
 
       _showSnackbar(
         'Success',
@@ -211,21 +206,15 @@ class ChatAIController extends GetxController {
     }
   }
 
+  // Show dialog to enter API keys
   void _showApiKeySetupDialog() {
-    final openAIController = TextEditingController();
-    final claudeController = TextEditingController();
-    final geminiController = TextEditingController();
-
-    // Pre-fill with existing keys if available
-    if (_openAIKey != null) openAIController.text = _openAIKey!;
-    if (_claudeKey != null) claudeController.text = _claudeKey!;
-    if (_geminiKey != null) geminiController.text = _geminiKey!;
+    final openAIController = TextEditingController(text: _openAIKey);
+    final claudeController = TextEditingController(text: _claudeKey);
+    final geminiController = TextEditingController(text: _geminiKey);
 
     Get.dialog(
       WillPopScope(
-        onWillPop: () async {
-          return hasAnyApiKey.value;
-        }, // Only allow back if keys exist
+        onWillPop: () async => hasAnyApiKey.value,
         child: AlertDialog(
           title: Text('Setup API Keys'),
           content: SingleChildScrollView(
@@ -285,12 +274,11 @@ class ChatAIController extends GetxController {
             ),
           ),
           actions: [
-            // Always show both buttons in the same row
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
-                  onPressed: () => _safeDialogClose(),
+                  onPressed: _safeDialogClose,
                   child: Text(
                     'Cancel',
                     style: TextStyle(color: Colors.grey[600]),
@@ -303,7 +291,6 @@ class ChatAIController extends GetxController {
                     final claude = claudeController.text.trim();
                     final gemini = geminiController.text.trim();
 
-                    // Validate that at least one key is provided
                     if (openAI.isEmpty && claude.isEmpty && gemini.isEmpty) {
                       _showSnackbar(
                         'Error',
@@ -313,16 +300,8 @@ class ChatAIController extends GetxController {
                       return;
                     }
 
-                    // Show loading dialog safely
                     _showLoadingDialog();
-
-                    await _storeApiKeys(
-                      openAI.isEmpty ? null : openAI,
-                      claude.isEmpty ? null : claude,
-                      gemini.isEmpty ? null : gemini,
-                    );
-
-                    // Close dialogs safely
+                    await _storeApiKeys(openAI, claude, gemini);
                     await _safeCloseAllDialogs();
                   },
                   child: Text('Save Keys'),
@@ -336,7 +315,7 @@ class ChatAIController extends GetxController {
     );
   }
 
-  // Safe dialog closing methods
+  // Dialog utilities
   void _showLoadingDialog() {
     Get.dialog(
       Center(
@@ -361,32 +340,24 @@ class ChatAIController extends GetxController {
   }
 
   void _safeDialogClose() {
-    if (Get.isDialogOpen ?? false) {
-      Get.back();
-    }
+    if (Get.isDialogOpen ?? false) Get.back();
   }
 
   Future<void> _safeCloseAllDialogs() async {
-    // Close any existing snackbars first
     if (Get.isSnackbarOpen) {
       Get.closeCurrentSnackbar();
       await Future.delayed(Duration(milliseconds: 100));
     }
-
-    // Close loading dialog
     if (Get.isDialogOpen ?? false) {
       Get.back();
       await Future.delayed(Duration(milliseconds: 100));
     }
-
-    // Close main dialog
-    if (Get.isDialogOpen ?? false) {
-      Get.back();
-    }
+    if (Get.isDialogOpen ?? false) Get.back();
   }
 
+  // Add initial greeting message
   void _addWelcomeMessage() {
-    messages.clear(); // Clear any existing messages
+    messages.clear();
     messages.add(
       ChatMessage(
         content:
@@ -398,12 +369,12 @@ class ChatAIController extends GetxController {
     );
   }
 
+  // Change selected AI provider
   void changeAIProvider(AIProvider provider) {
-    // Check if provider is available
     if (!availableProviders.contains(provider)) {
       _showSnackbar(
         'Provider Unavailable',
-        'API key for ${_getProviderName(provider)} is not configured. Please add it in settings.',
+        'API key for ${_getProviderName(provider)} is not configured.',
         backgroundColor: Colors.orange,
       );
       return;
@@ -422,6 +393,7 @@ class ChatAIController extends GetxController {
     _scrollToBottom();
   }
 
+  // Get provider name and color
   String _getProviderName(AIProvider provider) {
     switch (provider) {
       case AIProvider.chatGPT:
@@ -447,31 +419,22 @@ class ChatAIController extends GetxController {
   Color get currentProviderColor => _getProviderColor(selectedProvider.value);
   String get currentProviderName => _getProviderName(selectedProvider.value);
 
+  // Send message to selected provider
   void sendMessage() async {
     final messageText = messageController.text.trim();
     if (messageText.isEmpty || isLoading.value) return;
 
-    // Check if current provider is available
     if (!availableProviders.contains(selectedProvider.value)) {
-      _showSnackbar(
-        'Error',
-        'API key not found for ${_getProviderName(selectedProvider.value)}. Please configure it first.',
-        backgroundColor: Colors.red,
-      );
+      _showSnackbar('Error', 'API key not found.', backgroundColor: Colors.red);
       return;
     }
 
-    String? apiKey = _getApiKeyForProvider(selectedProvider.value);
-    if (apiKey == null || apiKey.isEmpty) {
-      _showSnackbar(
-        'Error',
-        'API key not found for ${_getProviderName(selectedProvider.value)}',
-        backgroundColor: Colors.red,
-      );
+    final apiKey = _getApiKeyForProvider(selectedProvider.value);
+    if (apiKey?.isEmpty ?? true) {
+      _showSnackbar('Error', 'API key missing.', backgroundColor: Colors.red);
       return;
     }
 
-    // Add user message
     messages.add(
       ChatMessage(
         content: messageText,
@@ -479,7 +442,6 @@ class ChatAIController extends GetxController {
         timestamp: DateTime.now(),
       ),
     );
-
     messageController.clear();
     isLoading.value = true;
     _scrollToBottom();
@@ -488,17 +450,16 @@ class ChatAIController extends GetxController {
       String response;
       switch (selectedProvider.value) {
         case AIProvider.chatGPT:
-          response = await _sendToChatGPT(messageText, apiKey);
+          response = await _sendToChatGPT(messageText, apiKey!);
           break;
         case AIProvider.claude:
-          response = await _sendToClaude(messageText, apiKey);
+          response = await _sendToClaude(messageText, apiKey!);
           break;
         case AIProvider.gemini:
-          response = await _sendToGemini(messageText, apiKey);
+          response = await _sendToGemini(messageText, apiKey!);
           break;
       }
 
-      // Add AI response
       messages.add(
         ChatMessage(
           content: response,
@@ -508,10 +469,9 @@ class ChatAIController extends GetxController {
         ),
       );
     } catch (e) {
-      // Add error message
       messages.add(
         ChatMessage(
-          content: "Sorry, I encountered an error: ${e.toString()}",
+          content: "Error: ${e.toString()}",
           isUser: false,
           timestamp: DateTime.now(),
           aiProvider: selectedProvider.value,
@@ -534,6 +494,7 @@ class ChatAIController extends GetxController {
     }
   }
 
+  // API calls for each provider
   Future<String> _sendToChatGPT(String message, String apiKey) async {
     final response = await http.post(
       Uri.parse('https://api.openai.com/v1/chat/completions'),
@@ -544,11 +505,7 @@ class ChatAIController extends GetxController {
       body: json.encode({
         'model': 'gpt-3.5-turbo',
         'messages': [
-          {
-            'role': 'system',
-            'content':
-                'You are a helpful AI assistant for students and educators. Provide clear, educational responses.',
-          },
+          {'role': 'system', 'content': 'You are a helpful AI assistant...'},
           {'role': 'user', 'content': message},
         ],
         'max_tokens': 500,
@@ -560,8 +517,9 @@ class ChatAIController extends GetxController {
       final data = json.decode(response.body);
       return data['choices'][0]['message']['content'].toString().trim();
     } else {
-      final errorData = json.decode(response.body);
-      throw Exception('OpenAI Error: ${errorData['error']['message']}');
+      throw Exception(
+        'OpenAI Error: ${json.decode(response.body)['error']['message']}',
+      );
     }
   }
 
@@ -577,11 +535,7 @@ class ChatAIController extends GetxController {
         'model': 'claude-3-haiku-20240307',
         'max_tokens': 500,
         'messages': [
-          {
-            'role': 'user',
-            'content':
-                'You are a helpful AI assistant for students and educators. Provide clear, educational responses. User question: $message',
-          },
+          {'role': 'user', 'content': '...User question: $message'},
         ],
       }),
     );
@@ -590,8 +544,9 @@ class ChatAIController extends GetxController {
       final data = json.decode(response.body);
       return data['content'][0]['text'].toString().trim();
     } else {
-      final errorData = json.decode(response.body);
-      throw Exception('Claude Error: ${errorData['error']['message']}');
+      throw Exception(
+        'Claude Error: ${json.decode(response.body)['error']['message']}',
+      );
     }
   }
 
@@ -605,10 +560,7 @@ class ChatAIController extends GetxController {
         'contents': [
           {
             'parts': [
-              {
-                'text':
-                    'You are a helpful AI assistant for students and educators. Provide clear, educational responses. User question: $message',
-              },
+              {'text': '...User question: $message'},
             ],
           },
         ],
@@ -627,11 +579,13 @@ class ChatAIController extends GetxController {
           .toString()
           .trim();
     } else {
-      final errorData = json.decode(response.body);
-      throw Exception('Gemini Error: ${errorData['error']['message']}');
+      throw Exception(
+        'Gemini Error: ${json.decode(response.body)['error']['message']}',
+      );
     }
   }
 
+  // Scroll to bottom of chat
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (scrollController.hasClients) {
@@ -644,28 +598,30 @@ class ChatAIController extends GetxController {
     });
   }
 
+  // Clear entire chat history
   void clearChat() {
     messages.clear();
     _addWelcomeMessage();
   }
 
+  // Delete a specific message by index
   void deleteMessage(int index) {
     if (index >= 0 && index < messages.length) {
       messages.removeAt(index);
     }
   }
 
-  // Method to update API keys if needed
+  // Show key update dialog
   void showUpdateKeysDialog() {
     _showApiKeySetupDialog();
   }
 
-  // Check if a provider is available
+  // Check if provider is configured
   bool isProviderAvailable(AIProvider provider) {
     return availableProviders.contains(provider);
   }
 
-  // Get list of available providers for UI
+  // Return available AI providers
   List<AIProvider> getAvailableProviders() {
     return availableProviders.toList();
   }
