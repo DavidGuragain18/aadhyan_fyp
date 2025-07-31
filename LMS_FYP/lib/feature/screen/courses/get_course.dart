@@ -29,7 +29,7 @@ class _CourseScreenState extends State<CourseScreen> {
   void initState() {
     super.initState();
 
-    // Initialize controllers
+    // Initialize controllers in get course
     try {
       courseController = Get.find<CourseController>();
     } catch (e) {
